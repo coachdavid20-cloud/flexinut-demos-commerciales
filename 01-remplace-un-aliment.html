@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="robots" content="noindex">
+<title>FlexiNut — Remplace un aliment</title>
+
+<!--
+  ============================================================================
+  FLEXINUT — DÉMONSTRATION COMMERCIALE n° 1 : « Remplace un aliment »
+  ----------------------------------------------------------------------------
+  Destination : popup systeme.io (bouton « Voir un exemple »).
+  Dépendances : AUCUNE. Pas de CDN, pas de police distante, pas d'image
+                externe, pas d'API. Tout est inline : CSS, SVG, JavaScript.
+  Données     : valeurs nutritionnelles CIQUAL 2025 du catalogue FlexiNut,
+                quantités équivalentes calculées avec la formule réelle du
+                moteur d'équivalences (base = macronutriment dominant de la
+                catégorie ; ici les PROTÉINES pour « Viandes/Poissons/Œufs ») :
+                    grammes_équivalents = (protéines_source / protéines_cible) × 100
+  Interactions: 2, toutes réelles — choix de l'équivalent, choix de la portée.
+                Aucun bouton factice, aucune donnée personnelle collectée.
+  ============================================================================
+-->
+
+<style>
+/* ===== Jetons de marque FlexiNut ======================================== */
+:root{
+  --tq:#20C7AA;            /* turquoise principal */
+  --tq-clair:#E8F8F4;      /* turquoise clair     */
+  --nuit:#18243A;          /* bleu nuit           */
+  --blanc:#FFFFFF;
+  --gris:#6B7280;          /* gris de texte       */
+  --gris-clair:#F5F7FA;    /* gris très clair     */
+  --bord:#E6EAF0;
+  --ombre:0 1px 2px rgba(24,36,58,.04), 0 8px 24px rgba(24,36,58,.06);
+  --ombre-f:0 2px 6px rgba(24,36,58,.06), 0 14px 34px rgba(24,36,58,.10);
+  --r:18px;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;padding:0;background:var(--gris-clair);color:var(--nuit);
+  font-family:Inter,"Inter var",-apple-system,BlinkMacSystemFont,"Segoe UI",
+              Roboto,"Helvetica Neue",Arial,sans-serif;
+  font-size:15px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+}
+/* ===== Blindage ========================================================
+   Neutralise ce qu'une page hôte (systeme.io) pourrait imposer aux éléments
+   génériques : couleur et casse des titres, décorations, police des boutons.
+   Placé AVANT les règles de la démonstration, qui restent prioritaires. */
+h1,h2,p,ul,ol,li,span,div,button,b,strong,em{
+  color:inherit;font-family:inherit;text-transform:none;font-style:normal;
+  text-decoration:none;text-shadow:none}
+svg{opacity:1}
+
+.fn{max-width:560px;margin:0 auto;padding:18px 16px 22px}
+
+/* ===== En-tête ========================================================== */
+.fn-haut{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.fn-logo{display:flex;align-items:center;gap:8px;font-weight:700;
+         letter-spacing:-.02em;font-size:15px;color:var(--nuit)}
+.fn-etiq{margin-left:auto;background:var(--tq-clair);color:#0E6B5C;
+         font-size:11px;font-weight:650;letter-spacing:.04em;
+         text-transform:uppercase;padding:5px 10px;border-radius:999px}
+
+/* ===== Titres =========================================================== */
+h1{font-size:24px;line-height:1.22;letter-spacing:-.025em;margin:0 0 8px;
+   font-weight:750}
+.fn-chapo{margin:0 0 18px;color:var(--gris);font-size:14.5px}
+.fn-chapo strong{color:var(--nuit);font-weight:650}
+
+/* ===== Cartes =========================================================== */
+.carte{background:var(--blanc);border:1px solid var(--bord);border-radius:var(--r);
+       box-shadow:var(--ombre);padding:16px;margin-bottom:14px}
+.carte-titre{display:flex;align-items:center;gap:8px;font-size:11px;
+  font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--gris);margin:0 0 12px}
+.carte-titre svg{flex:0 0 auto}
+
+/* ===== Repas du programme =============================================== */
+.repas-tete{display:flex;align-items:baseline;gap:8px;margin-bottom:10px}
+.repas-nom{font-weight:700;font-size:16px;letter-spacing:-.01em}
+.repas-jour{color:var(--gris);font-size:12.5px}
+.ligne{display:flex;align-items:center;gap:10px;padding:9px 10px;
+       border-radius:11px;background:var(--gris-clair);margin-bottom:6px}
+.ligne:last-child{margin-bottom:0}
+.ligne-nom{flex:1;font-size:14px;min-width:0}
+.ligne-g{font-variant-numeric:tabular-nums;font-weight:650;font-size:13.5px;
+         color:var(--nuit);white-space:nowrap}
+.ligne.vise{background:var(--tq-clair);box-shadow:inset 0 0 0 1.5px var(--tq)}
+.ligne.vise .ligne-nom{font-weight:650}
+.puce-vise{font-size:10.5px;font-weight:700;letter-spacing:.04em;
+  text-transform:uppercase;color:#0E6B5C;background:rgba(32,199,170,.18);
+  padding:3px 7px;border-radius:999px;white-space:nowrap}
+
+/* ===== Aliment d'origine ================================================ */
+.origine{display:flex;align-items:center;gap:12px}
+.origine-nom{font-weight:700;font-size:17px;letter-spacing:-.015em}
+.origine-g{margin-left:auto;background:var(--nuit);color:#fff;font-weight:700;
+  font-size:14px;padding:6px 12px;border-radius:999px;
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.macros{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:12px}
+.macro{min-width:0;background:var(--gris-clair);border-radius:11px;
+       padding:8px 6px;text-align:center}
+.macro-v{font-weight:700;font-size:15px;font-variant-numeric:tabular-nums;
+         letter-spacing:-.01em;white-space:nowrap}
+.macro-l{font-size:10.5px;color:var(--gris);margin-top:1px;letter-spacing:.02em}
+.macro.cle{background:var(--tq-clair)}
+.macro.cle .macro-v{color:#0E6B5C}
+.base{display:flex;align-items:center;gap:7px;margin-top:11px;
+  font-size:12.5px;color:var(--gris);background:var(--gris-clair);
+  border-radius:10px;padding:8px 10px}
+.base b{color:var(--nuit);font-weight:650}
+
+/* ===== Liste d'équivalents ============================================== */
+.equivs{display:flex;flex-direction:column;gap:8px}
+.equiv{display:flex;align-items:center;gap:11px;width:100%;text-align:left;
+  background:var(--blanc);border:1.5px solid var(--bord);border-radius:14px;
+  padding:11px 12px;cursor:pointer;font:inherit;color:inherit;
+  transition:border-color .15s,background .15s,transform .1s,box-shadow .15s}
+.equiv:hover{border-color:#C9D3DF;box-shadow:var(--ombre)}
+.equiv:active{transform:scale(.995)}
+.equiv[aria-pressed="true"]{border-color:var(--tq);background:var(--tq-clair);
+  box-shadow:0 0 0 3px rgba(32,199,170,.14)}
+.equiv:focus-visible{outline:3px solid rgba(24,36,58,.5);outline-offset:2px}
+.equiv-ico{flex:0 0 auto;width:34px;height:34px;border-radius:10px;
+  background:var(--gris-clair);display:flex;align-items:center;
+  justify-content:center}
+.equiv[aria-pressed="true"] .equiv-ico{background:rgba(32,199,170,.2)}
+.equiv-txt{flex:1;min-width:0}
+.equiv-nom{font-weight:650;font-size:14.5px;letter-spacing:-.01em;
+  display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.equiv-det{font-size:12px;color:var(--gris);margin-top:2px;
+  font-variant-numeric:tabular-nums}
+.equiv-g{flex:0 0 auto;font-weight:750;font-size:15px;
+  font-variant-numeric:tabular-nums;color:var(--nuit);white-space:nowrap}
+.equiv[aria-pressed="true"] .equiv-g{color:#0E6B5C}
+.pref{font-size:10px;font-weight:700;letter-spacing:.03em;color:#0E6B5C;
+  background:rgba(32,199,170,.16);padding:2px 6px;border-radius:999px;
+  text-transform:uppercase}
+
+/* ===== Avant / après ==================================================== */
+.ap{display:grid;grid-template-columns:1fr 26px 1fr;align-items:stretch;gap:8px}
+.ap-col{background:var(--gris-clair);border-radius:13px;padding:11px 10px;
+        text-align:center;min-width:0}
+.ap-col.neuf{background:var(--tq-clair)}
+.ap-l{font-size:10.5px;font-weight:700;letter-spacing:.05em;
+  text-transform:uppercase;color:var(--gris);margin-bottom:5px}
+.ap-n{font-weight:700;font-size:14px;letter-spacing:-.01em;
+  overflow-wrap:anywhere}
+.ap-q{font-size:12.5px;color:var(--gris);margin-top:2px;
+  font-variant-numeric:tabular-nums}
+.ap-fl{display:flex;align-items:center;justify-content:center;color:var(--tq)}
+.prot{display:flex;align-items:center;justify-content:center;gap:8px;
+  margin-top:11px;background:var(--nuit);color:#fff;border-radius:12px;
+  padding:10px 12px;font-size:13px;text-align:center}
+.prot b{font-weight:700}
+.prot .pt{color:#6FE3CE}
+
+/* ===== Portée =========================================================== */
+.portees{display:flex;flex-direction:column;gap:7px}
+.portee{display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+  background:var(--blanc);border:1.5px solid var(--bord);border-radius:13px;
+  padding:11px 12px;cursor:pointer;font:inherit;color:inherit;
+  transition:border-color .15s,background .15s}
+.portee:hover{border-color:#C9D3DF}
+.portee[aria-pressed="true"]{border-color:var(--tq);background:var(--tq-clair)}
+.portee:focus-visible{outline:3px solid rgba(24,36,58,.5);outline-offset:2px}
+.radio{flex:0 0 auto;width:18px;height:18px;border-radius:50%;
+  border:2px solid #C9D3DF;position:relative}
+.portee[aria-pressed="true"] .radio{border-color:var(--tq)}
+.portee[aria-pressed="true"] .radio::after{content:"";position:absolute;
+  inset:3px;border-radius:50%;background:var(--tq)}
+.portee-l{flex:1;font-size:14px;min-width:0}
+.portee-n{flex:0 0 auto;font-size:12px;font-weight:700;color:var(--gris);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.portee[aria-pressed="true"] .portee-n{color:#0E6B5C}
+
+/* ===== Récapitulatif ==================================================== */
+.recap{background:var(--nuit);border-radius:var(--r);padding:16px;color:#fff;
+       box-shadow:var(--ombre-f);margin-bottom:14px}
+.recap .carte-titre{color:rgba(255,255,255,.62);margin-bottom:11px}
+.recap-l{display:flex;align-items:baseline;gap:10px;padding:7px 0;
+  border-bottom:1px solid rgba(255,255,255,.1);font-size:13.5px}
+.recap-l:last-of-type{border-bottom:0}
+.recap-k{color:rgba(255,255,255,.62);flex:0 0 auto;font-size:12.5px}
+.recap-v{margin-left:auto;text-align:right;font-weight:650;
+  font-variant-numeric:tabular-nums}
+.recap-v em{font-style:normal;color:#6FE3CE}
+.recap-note{margin-top:11px;font-size:12px;color:rgba(255,255,255,.66);
+  line-height:1.45}
+
+/* ===== Conclusion ======================================================= */
+.fin{background:var(--tq-clair);border:1px solid rgba(32,199,170,.3);
+  border-radius:var(--r);padding:15px 16px;text-align:center}
+.fin p{margin:0;font-size:15.5px;font-weight:650;letter-spacing:-.01em;
+  line-height:1.4}
+.fin .sous{margin-top:6px;font-size:13px;font-weight:400;color:#2C6A5F}
+
+/* ===== Pied ============================================================= */
+.pied{margin-top:14px;font-size:11.5px;color:#8B93A1;line-height:1.5;
+      text-align:center}
+.pied b{color:var(--gris);font-weight:650}
+
+@media (max-width:380px){
+  .fn{padding:14px 12px 18px}
+  h1{font-size:21px}
+  .macros{gap:4px}
+  .macro{padding:8px 3px}
+  .macro-v{font-size:13.5px}
+  .ap{grid-template-columns:1fr 20px 1fr;gap:6px}
+  .equiv-g{font-size:14px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main class="fn">
+
+  <!-- ===================== En-tête ===================== -->
+  <header class="fn-haut">
+    <span class="fn-logo">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect width="24" height="24" rx="7" fill="#20C7AA"/>
+        <path d="M8.1 17.2c-1.9-2.4-1.5-5.9.9-7.8 1.7-1.3 4-1.7 6.6-1.6.2 2.6-.2 4.9-1.5 6.6-1.9 2.4-5.4 2.8-7.8.9z" fill="#fff" opacity=".95"/>
+        <path d="M7.4 17.9c1.1-2.6 3-4.8 5.4-6.3" stroke="#18243A" stroke-width="1.3" stroke-linecap="round" opacity=".5"/>
+      </svg>
+      FlexiNut
+    </span>
+    <span class="fn-etiq">Équivalences</span>
+  </header>
+
+  <!-- ===================== Titre ===================== -->
+  <h1>Il te manque un aliment&nbsp;? Ton programme tient quand&nbsp;même.</h1>
+  <p class="fn-chapo">
+    Tu n'aimes pas le poulet, ton magasin n'en a plus, ou tu as juste envie
+    d'autre chose. FlexiNut te propose des alternatives qui gardent
+    <strong>le même apport nutritionnel</strong>, avec la quantité déjà
+    recalculée. Choisis-en une ci-dessous&nbsp;: tout se met à jour.
+  </p>
+
+  <!-- ░░ OPTIONNEL (le repas du programme, ≈ 200 px) — supprime ce bloc pour une popup plus courte : DÉBUT ░░ -->
+  <!-- ===================== Le repas ===================== -->
+  <section class="carte" aria-label="Le repas de ton programme">
+    <p class="carte-titre">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path d="M4 2v5a2 2 0 0 0 2 2v5M4 2v4M6 2v4M12 2c-1 1.5-1.3 3-1 5h1v7" stroke="#6B7280" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      Le repas de ton programme
+    </p>
+    <div class="repas-tete">
+      <span class="repas-nom">Dîner</span>
+      <span class="repas-jour">Semaine 2 · Jour 3</span>
+    </div>
+    <div class="ligne vise">
+      <span class="ligne-nom">Filet de poulet</span>
+      <span class="puce-vise">à remplacer</span>
+      <span class="ligne-g">150 g</span>
+    </div>
+    <div class="ligne"><span class="ligne-nom">Riz complet cuit</span><span class="ligne-g">150 g</span></div>
+    <div class="ligne"><span class="ligne-nom">Courgette</span><span class="ligne-g">150 g</span></div>
+  </section>
+  <!-- ░░ OPTIONNEL — FIN ░░ -->
+
+  <!-- ===================== Aliment d'origine ===================== -->
+  <section class="carte" aria-label="Aliment d'origine">
+    <p class="carte-titre">Aliment d'origine</p>
+    <div class="origine">
+      <span class="origine-nom">Filet de poulet</span>
+      <span class="origine-g">150 g</span>
+    </div>
+    <div class="macros">
+      <div class="macro"><div class="macro-v">165</div><div class="macro-l">kcal</div></div>
+      <div class="macro cle"><div class="macro-v">35,1 g</div><div class="macro-l">protéines</div></div>
+      <div class="macro"><div class="macro-v">0 g</div><div class="macro-l">glucides</div></div>
+      <div class="macro"><div class="macro-v">2,2 g</div><div class="macro-l">lipides</div></div>
+    </div>
+    <p class="base">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <circle cx="8" cy="8" r="6.4" stroke="#20C7AA" stroke-width="1.4"/>
+        <path d="M5.3 8h5.4M8 5.3v5.4" stroke="#20C7AA" stroke-width="1.4" stroke-linecap="round"/>
+      </svg>
+      <span>Pour cette famille d'aliments, l'équivalence se calcule sur
+        <b>les protéines</b>. La quantité proposée est ajustée pour en
+        apporter autant.</span>
+    </p>
+  </section>
+
+  <!-- ===================== Équivalents ===================== -->
+  <section class="carte" aria-label="Équivalents proposés">
+    <p class="carte-titre" id="t-equiv">Équivalents proposés (5)</p>
+    <div class="equivs" role="group" aria-labelledby="t-equiv" id="equivs"><!-- rempli par le script --></div>
+  </section>
+
+  <!-- ===================== Avant / après ===================== -->
+  <section class="carte" aria-label="Comparaison avant et après">
+    <p class="carte-titre">Ce que ça change dans ton assiette</p>
+    <div class="ap">
+      <div class="ap-col">
+        <div class="ap-l">Avant</div>
+        <div class="ap-n">Filet de poulet</div>
+        <div class="ap-q">150 g · 165 kcal</div>
+      </div>
+      <div class="ap-fl" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <path d="M3 10h13M11.5 5.5 16 10l-4.5 4.5" stroke="#20C7AA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="ap-col neuf">
+        <div class="ap-l">Après</div>
+        <div class="ap-n" id="ap-nom">—</div>
+        <div class="ap-q" id="ap-q">—</div>
+      </div>
+    </div>
+    <p class="prot">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path d="M3.2 8.6 6.4 12l6.4-7.4" stroke="#6FE3CE" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span id="prot-txt">Sélectionne un équivalent pour comparer.</span>
+    </p>
+  </section>
+
+  <!-- ===================== Portée ===================== -->
+  <section class="carte" aria-label="Portée du remplacement">
+    <p class="carte-titre" id="t-portee">Portée du remplacement</p>
+    <div class="portees" role="group" aria-labelledby="t-portee" id="portees"><!-- rempli par le script --></div>
+  </section>
+
+  <!-- ===================== Récapitulatif ===================== -->
+  <section class="recap" aria-live="polite" aria-label="Récapitulatif">
+    <p class="carte-titre">Récapitulatif</p>
+    <div class="recap-l"><span class="recap-k">Aliment remplacé</span>
+      <span class="recap-v">Filet de poulet 150 g</span></div>
+    <div class="recap-l"><span class="recap-k">Nouvelle équivalence</span>
+      <span class="recap-v"><em id="r-neuf">—</em></span></div>
+    <div class="recap-l"><span class="recap-k">Repas concernés</span>
+      <span class="recap-v" id="r-repas">—</span></div>
+    <p class="recap-note">
+      Les quantités sont ajustées automatiquement pour chaque repas&nbsp;: une
+      portion de 90 g et une portion de 150 g du même aliment ne reçoivent pas
+      la même quantité d'équivalent. Dans l'application, un dernier écran
+      récapitule avant de confirmer, et le remplacement reste annulable.
+    </p>
+  </section>
+
+  <!-- ===================== Conclusion ===================== -->
+  <section class="fin">
+    <p>Ton programme s'adapte à ta vie, pas l'inverse.</p>
+    <p class="sous">Aucun aliment n'est obligatoire. Seul l'équilibre compte —
+      et c'est FlexiNut qui le recalcule.</p>
+  </section>
+
+  <p class="pied">
+    Exemple illustratif. <b>Valeurs nutritionnelles issues de la table CIQUAL
+    2025</b>, quantités calculées par le moteur d'équivalences FlexiNut.
+    Pour les légumes, la quantité est conservée telle quelle&nbsp;:
+    150 g de carottes deviennent 150 g de courgettes.
+  </p>
+
+</main>
+
+<script>
+(function(){
+  "use strict";
+
+  /* Équivalents réels : grammes = (35,1 g de protéines ÷ protéines/100 g) × 100,
+     puis kcal et macros recalculées sur cette quantité (table CIQUAL 2025). */
+  var EQUIVALENTS = [
+    {nom:"Escalope de dinde", g:148, kcal:160, p:"35,1", gl:"0",   l:"2,2", pref:true,  ico:"volaille"},
+    {nom:"Cabillaud",         g:194, kcal:149, p:"35,1", gl:"0",   l:"1,1", pref:false, ico:"poisson"},
+    {nom:"Crevette",          g:178, kcal:176, p:"35,1", gl:"5,7", l:"1,5", pref:false, ico:"poisson"},
+    {nom:"Thon",              g:146, kcal:226, p:"35,0", gl:"4,0", l:"7,9", pref:false, ico:"poisson"},
+    {nom:"Steak haché 5% MG", g:160, kcal:208, p:"35,0", gl:"0,5", l:"7,3", pref:false, ico:"viande"}
+  ];
+
+  var PORTEES = [
+    {libelle:"Uniquement ce repas",                        n:1},
+    {libelle:"Tous les repas identiques de cette semaine", n:3},
+    {libelle:"Tous les repas identiques du programme",     n:11}
+  ];
+
+  var ICONES = {
+    volaille:'<path d="M5 14c-1.6-2-1.2-4.9.8-6.4 1.4-1.1 3.3-1.4 5.5-1.3.2 2.2-.2 4.1-1.3 5.5C8.5 13.8 6.6 15.6 5 14z" fill="#20C7AA"/><path d="M4.5 15c.9-2.2 2.5-4 4.5-5.2" stroke="#18243A" stroke-width="1.1" stroke-linecap="round" opacity=".45"/>',
+    poisson:'<path d="M3 10c2-2.6 4.3-3.9 7-3.9 2.2 0 4 .9 5.4 2.6L17 10l-1.6 1.3c-1.4 1.7-3.2 2.6-5.4 2.6-2.7 0-5-1.3-7-3.9z" fill="#20C7AA"/><circle cx="12.4" cy="9.1" r=".85" fill="#fff"/><path d="M3 10 1 7.4v5.2L3 10z" fill="#18243A" opacity=".35"/>',
+    viande:'<path d="M5.6 5.2c2.6-1.3 5.4-.8 7 1.3 1.6 2.1 1.2 5-.9 6.8-2.1 1.8-5 1.7-6.7-.3-1.7-2-1.6-6 .6-7.8z" fill="#20C7AA"/><circle cx="8.6" cy="9.5" r="2" fill="#fff" opacity=".9"/>'
+  };
+
+  var choisi = 0, portee = 0;
+
+  function icone(cle){
+    return '<svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">'+ICONES[cle]+'</svg>';
+  }
+
+  /* ---- Construction de la liste d'équivalents ---- */
+  var boite = document.getElementById("equivs");
+  EQUIVALENTS.forEach(function(e, i){
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "equiv";
+    b.setAttribute("aria-pressed", "false");
+    b.innerHTML =
+      '<span class="equiv-ico">'+icone(e.ico)+'</span>'+
+      '<span class="equiv-txt">'+
+        '<span class="equiv-nom">'+e.nom+
+          (e.pref ? '<span class="pref">Préférence habituelle</span>' : '')+
+        '</span>'+
+        '<span class="equiv-det">'+e.kcal+'\u00A0kcal · P\u00A0'+e.p+'\u00A0g · '+
+          'G\u00A0'+e.gl+'\u00A0g · L\u00A0'+e.l+'\u00A0g</span>'+
+      '</span>'+
+      '<span class="equiv-g">'+e.g+' g</span>';
+    b.addEventListener("click", function(){ choisi = i; rendre(); });
+    boite.appendChild(b);
+  });
+
+  /* ---- Construction des portées ---- */
+  var bp = document.getElementById("portees");
+  PORTEES.forEach(function(p, i){
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "portee";
+    b.setAttribute("aria-pressed", "false");
+    b.innerHTML =
+      '<span class="radio" aria-hidden="true"></span>'+
+      '<span class="portee-l">'+p.libelle+'</span>'+
+      '<span class="portee-n">'+p.n+' repas</span>';
+    b.addEventListener("click", function(){ portee = i; rendre(); });
+    bp.appendChild(b);
+  });
+
+  /* ---- Rendu ---- */
+  function rendre(){
+    var e = EQUIVALENTS[choisi], p = PORTEES[portee];
+
+    var bs = boite.querySelectorAll(".equiv");
+    for (var i = 0; i < bs.length; i++){
+      bs[i].setAttribute("aria-pressed", i === choisi ? "true" : "false");
+    }
+    var ps = bp.querySelectorAll(".portee");
+    for (var j = 0; j < ps.length; j++){
+      ps[j].setAttribute("aria-pressed", j === portee ? "true" : "false");
+    }
+
+    document.getElementById("ap-nom").textContent = e.nom;
+    document.getElementById("ap-q").textContent   = e.g + " g · " + e.kcal + " kcal";
+
+    var ecart = e.kcal - 165;
+    var motEcart = ecart === 0
+      ? "pour le même nombre de calories"
+      : (ecart > 0 ? "pour " + ecart + " kcal de plus" : "pour " + Math.abs(ecart) + " kcal de moins");
+    var compare = e.p === "35,1"
+      ? '<b>' + e.p + ' g de protéines</b> — <span class="pt">exactement comme le ' +
+        'filet de poulet</span>, '
+      : '<b>' + e.p + ' g de protéines</b> contre 35,1 g — ' +
+        '<span class="pt">le même apport</span>, ';
+    document.getElementById("prot-txt").innerHTML = compare + motEcart + '.';
+
+    document.getElementById("r-neuf").textContent  = e.nom + " " + e.g + " g";
+    document.getElementById("r-repas").textContent = p.n + " repas du programme";
+  }
+
+  rendre();
+})();
+</script>
+</body>
+</html>

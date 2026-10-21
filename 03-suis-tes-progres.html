@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="robots" content="noindex">
+<title>FlexiNut — Suis tes progrès</title>
+
+<!--
+  ============================================================================
+  FLEXINUT — DÉMONSTRATION COMMERCIALE n° 3 : « Suis tes progrès »
+  ----------------------------------------------------------------------------
+  Destination : popup systeme.io (bouton « Voir le suivi »).
+  Dépendances : AUCUNE. Pas de CDN, pas de police distante, pas de
+                bibliothèque de graphiques, pas d'API. Le graphique est
+                tracé en SVG par le script de la page.
+  Fidélité    : les indicateurs sont ceux de l'application — mesures
+                (poids, IMC, tours de taille, hanches, poitrine, bras,
+                cuisse, masses grasse et musculaire), périodes
+                (7 j, 30 j, 3 mois, 6 mois, 1 an, depuis le début),
+                évolution totale, dernière mesure, Score de progression,
+                Score d'adhérence sur 30 jours glissants et badges de
+                régularité.
+  Formules    : Score de progression (objectif « perte ») =
+                  ((poids_initial − poids_actuel) ÷ (poids_initial − objectif)) × 100
+                Score d'adhérence = somme pondérée de 8 critères, chacun
+                  plafonné à sa cible. Les deux sont réellement calculés
+                  par le script à partir des données affichées.
+  Interactions: 2, toutes réelles — changer de mesure, changer de période.
+                Le graphique et les chiffres sont recalculés à chaque fois.
+  Données     : EXEMPLE ILLUSTRATIF. Aucune donnée réelle, aucun client,
+                aucune promesse de résultat. Rien n'est collecté.
+  ============================================================================
+-->
+
+<style>
+:root{
+  --tq:#20C7AA; --tq-clair:#E8F8F4; --nuit:#18243A; --blanc:#FFFFFF;
+  --gris:#6B7280; --gris-clair:#F5F7FA; --bord:#E6EAF0;
+  --ombre:0 1px 2px rgba(24,36,58,.04), 0 8px 24px rgba(24,36,58,.06);
+  --ombre-f:0 2px 6px rgba(24,36,58,.06), 0 14px 34px rgba(24,36,58,.10);
+  --r:18px;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;padding:0;background:var(--gris-clair);color:var(--nuit);
+  font-family:Inter,"Inter var",-apple-system,BlinkMacSystemFont,"Segoe UI",
+              Roboto,"Helvetica Neue",Arial,sans-serif;
+  font-size:15px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+}
+/* ===== Blindage ========================================================
+   Neutralise ce qu'une page hôte (systeme.io) pourrait imposer aux éléments
+   génériques : couleur et casse des titres, décorations, police des boutons.
+   Placé AVANT les règles de la démonstration, qui restent prioritaires. */
+h1,h2,p,ul,ol,li,span,div,button,b,strong,em{
+  color:inherit;font-family:inherit;text-transform:none;font-style:normal;
+  text-decoration:none;text-shadow:none}
+svg{opacity:1}
+
+.fn{max-width:560px;margin:0 auto;padding:18px 16px 22px}
+
+.fn-haut{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.fn-logo{display:flex;align-items:center;gap:8px;font-weight:700;
+         letter-spacing:-.02em;font-size:15px}
+.fn-etiq{margin-left:auto;background:var(--tq-clair);color:#0E6B5C;
+         font-size:11px;font-weight:650;letter-spacing:.04em;
+         text-transform:uppercase;padding:5px 10px;border-radius:999px}
+
+h1{font-size:24px;line-height:1.22;letter-spacing:-.025em;margin:0 0 8px;
+   font-weight:750}
+.fn-chapo{margin:0 0 18px;color:var(--gris);font-size:14.5px}
+.fn-chapo strong{color:var(--nuit);font-weight:650}
+
+.carte{background:var(--blanc);border:1px solid var(--bord);border-radius:var(--r);
+       box-shadow:var(--ombre);padding:16px;margin-bottom:14px}
+.carte-titre{font-size:11px;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--gris);margin:0 0 12px}
+
+/* ===== Sélecteurs ===== */
+.choix{display:flex;gap:6px;margin-bottom:12px}
+.choix button{flex:1;background:var(--blanc);border:1.5px solid var(--bord);
+  border-radius:12px;padding:9px 6px;font:inherit;font-size:13.5px;
+  font-weight:650;color:var(--gris);cursor:pointer;
+  transition:border-color .15s,background .15s,color .15s;min-width:0}
+.choix button:hover{border-color:#C9D3DF}
+.choix button[aria-pressed="true"]{border-color:var(--tq);
+  background:var(--tq-clair);color:#0E6B5C}
+.choix button:focus-visible{outline:3px solid rgba(24,36,58,.5);outline-offset:2px}
+.periodes{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.periodes button{flex:1 1 0;min-width:70px;background:var(--gris-clair);
+  border:1.5px solid transparent;border-radius:11px;padding:7px 8px;
+  font:inherit;font-size:12.5px;font-weight:650;color:var(--gris);
+  cursor:pointer;transition:background .15s,color .15s,border-color .15s}
+.periodes button[aria-pressed="true"]{background:var(--nuit);color:#fff}
+.periodes button:focus-visible{outline:3px solid rgba(24,36,58,.5);outline-offset:2px}
+
+/* ===== Graphique ===== */
+.graph{position:relative;margin:2px 0 10px}
+.graph svg{display:block;width:100%;height:auto}
+.axe{display:flex;justify-content:space-between;font-size:11px;
+  color:#9AA3B2;margin-top:4px;font-variant-numeric:tabular-nums}
+.vide{padding:28px 10px;text-align:center;color:var(--gris);font-size:13.5px;
+  background:var(--gris-clair);border-radius:13px}
+
+/* ===== Chiffres clés ===== */
+.kpis{display:flex;gap:8px}
+.kpi{flex:1;background:var(--gris-clair);border-radius:13px;padding:11px 10px;
+  min-width:0}
+.kpi-l{font-size:10.5px;font-weight:700;letter-spacing:.04em;
+  text-transform:uppercase;color:var(--gris)}
+.kpi-v{font-size:20px;font-weight:750;letter-spacing:-.02em;margin-top:3px;
+  font-variant-numeric:tabular-nums}
+.kpi-s{font-size:11.5px;color:var(--gris);margin-top:1px;
+  font-variant-numeric:tabular-nums}
+.kpi.bon .kpi-v{color:#0E6B5C}
+.kpi.bon{background:var(--tq-clair)}
+
+/* ===== Score de progression ===== */
+.score{display:flex;align-items:center;gap:16px}
+.anneau{flex:0 0 auto;position:relative;width:96px;height:96px}
+.anneau svg{transform:rotate(-90deg)}
+.anneau-v{position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center}
+.anneau-n{font-size:25px;font-weight:750;letter-spacing:-.03em;line-height:1;
+  font-variant-numeric:tabular-nums}
+.anneau-u{font-size:10px;color:var(--gris);margin-top:2px;letter-spacing:.04em}
+.score-txt{flex:1;min-width:0}
+.score-h{font-size:15px;font-weight:700;letter-spacing:-.01em;margin:0 0 5px}
+.score-p{margin:0;font-size:13px;color:var(--gris);line-height:1.45}
+.jalons{display:flex;align-items:center;gap:8px;margin-top:13px;
+  background:var(--gris-clair);border-radius:11px;padding:9px 11px;
+  font-size:12.5px;font-variant-numeric:tabular-nums;flex-wrap:wrap}
+.jalons b{font-weight:700}
+.jalons .obj{color:#0E6B5C;font-weight:700}
+
+/* ===== Régularité ===== */
+.badges{display:flex;flex-wrap:wrap;gap:7px}
+.badge{display:inline-flex;align-items:center;gap:6px;background:var(--tq-clair);
+  border:1px solid rgba(32,199,170,.3);border-radius:999px;padding:6px 11px;
+  font-size:12.5px;font-weight:650;color:#0E6B5C}
+.badge.gris{background:var(--gris-clair);border-color:var(--bord);
+  color:#9AA3B2;font-weight:500}
+.badge .em{font-size:14px;line-height:1}
+.legende{margin:10px 0 0;font-size:12px;color:var(--gris);line-height:1.45}
+
+/* ===== Adhérence ===== */
+.adh-tete{display:flex;align-items:flex-end;gap:10px;margin-bottom:13px}
+.adh-n{font-size:30px;font-weight:750;letter-spacing:-.03em;line-height:1;
+  font-variant-numeric:tabular-nums}
+.adh-sur{font-size:13px;color:var(--gris);padding-bottom:3px}
+.adh-tend{margin-left:auto;display:inline-flex;align-items:center;gap:5px;
+  background:var(--tq-clair);color:#0E6B5C;font-size:12px;font-weight:700;
+  padding:5px 10px;border-radius:999px}
+.crit{margin-bottom:11px}
+.crit:last-child{margin-bottom:0}
+.crit-h{display:flex;align-items:baseline;gap:8px;font-size:13px;
+  margin-bottom:5px}
+.crit-h .v{margin-left:auto;color:var(--gris);font-size:12px;
+  font-variant-numeric:tabular-nums}
+.barre{height:7px;border-radius:999px;background:var(--gris-clair);overflow:hidden}
+.barre i{display:block;height:100%;border-radius:999px;
+  background:linear-gradient(90deg,#20C7AA,#4FD9C2)}
+
+/* ===== Conclusion ===== */
+.fin{background:var(--tq-clair);border:1px solid rgba(32,199,170,.3);
+  border-radius:var(--r);padding:15px 16px;text-align:center}
+.fin p{margin:0;font-size:15.5px;font-weight:650;letter-spacing:-.01em;
+  line-height:1.4}
+.fin .sous{margin-top:6px;font-size:13px;font-weight:400;color:#2C6A5F}
+
+.pied{margin-top:14px;font-size:11.5px;color:#8B93A1;line-height:1.5;
+  text-align:center}
+.pied b{color:var(--gris);font-weight:650}
+
+@media (max-width:380px){
+  .fn{padding:14px 12px 18px}
+  h1{font-size:21px}
+  .kpi-v{font-size:18px}
+  .kpi{padding:10px 8px}
+  .periodes button{font-size:12px;padding:7px 4px}
+}
+@media (max-width:360px){
+  .score{flex-direction:column;align-items:flex-start;gap:12px}
+  .anneau{width:84px;height:84px}
+  .anneau svg{width:84px;height:84px}
+  .anneau-n{font-size:22px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main class="fn">
+
+  <header class="fn-haut">
+    <span class="fn-logo">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect width="24" height="24" rx="7" fill="#20C7AA"/>
+        <path d="M8.1 17.2c-1.9-2.4-1.5-5.9.9-7.8 1.7-1.3 4-1.7 6.6-1.6.2 2.6-.2 4.9-1.5 6.6-1.9 2.4-5.4 2.8-7.8.9z" fill="#fff" opacity=".95"/>
+        <path d="M7.4 17.9c1.1-2.6 3-4.8 5.4-6.3" stroke="#18243A" stroke-width="1.3" stroke-linecap="round" opacity=".5"/>
+      </svg>
+      FlexiNut
+    </span>
+    <span class="fn-etiq">Mes progrès</span>
+  </header>
+
+  <h1>Vois ce que trois mois de régularité donnent vraiment.</h1>
+  <p class="fn-chapo">
+    Une mesure par semaine suffit. FlexiNut trace la courbe, calcule le chemin
+    parcouru vers ton objectif et te montre <strong>ta régularité</strong> —
+    celle qui fait la différence bien plus que la motivation d'un lundi matin.
+  </p>
+
+  <!-- ===== Courbes ===== -->
+  <section class="carte" aria-label="Mes courbes">
+    <p class="carte-titre">Mes mesures</p>
+
+    <div class="choix" role="group" aria-label="Mesure à afficher" id="mesures"></div>
+    <div class="periodes" role="group" aria-label="Période" id="periodes"></div>
+
+    <div class="graph" id="graph" aria-live="polite"></div>
+    <div class="axe"><span id="axe-g">—</span><span id="axe-d">—</span></div>
+
+    <div class="kpis" style="margin-top:12px">
+      <div class="kpi bon">
+        <div class="kpi-l">Évolution totale</div>
+        <div class="kpi-v" id="k-evo">—</div>
+        <div class="kpi-s" id="k-evo-s">—</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-l">Dernière mesure</div>
+        <div class="kpi-v" id="k-der">—</div>
+        <div class="kpi-s" id="k-der-s">—</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-l">Mesures</div>
+        <div class="kpi-v" id="k-nb">—</div>
+        <div class="kpi-s" id="k-nb-s">sur la période</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Score de progression ===== -->
+  <section class="carte" aria-label="Score de progression">
+    <p class="carte-titre">Score de progression</p>
+    <div class="score">
+      <div class="anneau">
+        <svg width="96" height="96" viewBox="0 0 96 96" aria-hidden="true">
+          <circle cx="48" cy="48" r="40" fill="none" stroke="#F0F3F7" stroke-width="10"/>
+          <circle id="arc" cx="48" cy="48" r="40" fill="none" stroke="#20C7AA"
+                  stroke-width="10" stroke-linecap="round"
+                  stroke-dasharray="0 999" />
+        </svg>
+        <div class="anneau-v">
+          <span class="anneau-n" id="sc-n">—</span>
+          <span class="anneau-u">/ 100</span>
+        </div>
+      </div>
+      <div class="score-txt">
+        <p class="score-h" id="sc-h">—</p>
+        <p class="score-p">
+          Il mesure <b>tes résultats</b> par rapport à ton objectif, depuis le
+          début de ton suivi. Il est indépendant du Score d'adhérence, qui
+          mesure, lui, le respect de ton programme.
+        </p>
+      </div>
+    </div>
+    <p class="jalons" id="jalons">—</p>
+  </section>
+
+  <!-- ===== Régularité ===== -->
+  <section class="carte" aria-label="Ma régularité">
+    <p class="carte-titre">Ma régularité</p>
+    <div class="badges">
+      <span class="badge"><span class="em">📋</span> Programme en place</span>
+      <span class="badge"><span class="em">📏</span> Premier suivi</span>
+      <span class="badge"><span class="em">🎉</span> Première semaine</span>
+      <span class="badge"><span class="em">🔥</span> Série de 7 jours</span>
+      <span class="badge"><span class="em">⚖️</span> −2 kg</span>
+      <span class="badge gris"><span class="em">⚡</span> Série de 14 jours</span>
+      <span class="badge gris"><span class="em">🌟</span> −5 kg</span>
+      <span class="badge gris"><span class="em">🎯</span> Objectif atteint</span>
+    </div>
+    <p class="legende">
+      Série en cours&nbsp;: <b>9 jours d'affilée</b>. Les badges en clair sont
+      déjà obtenus, les autres restent à décrocher — c'est tout ce qui te
+      sépare du prochain.
+    </p>
+  </section>
+
+<!-- ░░ OPTIONNEL (le Score d'adhérence, ≈ 350 px) — supprime ce bloc pour une popup plus courte : DÉBUT ░░ -->
+    <!-- ===== Adhérence ===== -->
+  <section class="carte" aria-label="Score d'adhérence">
+    <p class="carte-titre">Score d'adhérence · 30 derniers jours</p>
+    <div class="adh-tete">
+      <span class="adh-n" id="adh-n">—</span>
+      <span class="adh-sur">/ 100</span>
+      <span class="adh-tend">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+          <path d="M2 8.5 5 5l2 2 3-3.5M10 3.5H7.4M10 3.5V6" stroke="#0E6B5C" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span id="adh-t">—</span>
+      </span>
+    </div>
+    <div id="crits"></div>
+    <p class="legende">
+      Calculé sur <b>8 critères pondérés</b>, sur une fenêtre de 30 jours
+      glissants. Quatre sont affichés ici&nbsp;; les autres portent sur les
+      équivalences, les idées de plats, les listes de courses et les échanges
+      avec ton professionnel.
+    </p>
+  </section>
+  <!-- ░░ OPTIONNEL — FIN ░░ -->
+
+  <section class="fin">
+    <p>La régularité bat la motivation.</p>
+    <p class="sous">Une mesure par semaine, et tu vois enfin où tu en es —
+      au lieu de le deviner.</p>
+  </section>
+
+  <p class="pied">
+    <b>Exemple illustratif</b>, construit avec des données fictives&nbsp;: ce
+    ne sont ni les résultats d'un client, ni une promesse. L'évolution du
+    poids dépend de chacun. FlexiNut est un outil de suivi alimentaire et ne
+    remplace pas un avis médical.
+  </p>
+
+</main>
+
+<script>
+(function(){
+  "use strict";
+
+  var AUJOURDHUI = "2026-10-21";
+
+  /* ---- Mesures de l'exemple (fictives) -------------------------------- */
+  var SERIES = {
+    poids: {
+      cle:"poids", libelle:"Poids", unite:"kg", decimales:1, objectif:75.0,
+      points:[
+        ["2026-04-06",82.4],["2026-04-13",81.9],["2026-04-20",81.6],["2026-04-27",81.8],
+        ["2026-05-04",81.2],["2026-05-11",80.9],["2026-05-18",80.7],["2026-05-25",80.9],
+        ["2026-06-01",80.4],["2026-06-08",80.1],["2026-06-15",79.9],["2026-06-22",79.6],
+        ["2026-06-29",79.8],["2026-07-06",79.5],["2026-07-13",79.4],["2026-07-20",79.6],
+        ["2026-07-27",80.1],["2026-08-03",80.3],["2026-08-10",80.0],["2026-08-17",79.7],
+        ["2026-08-24",79.5],["2026-08-31",79.3],["2026-09-07",79.0],["2026-09-14",79.1],
+        ["2026-09-21",78.8],["2026-09-28",78.7],["2026-10-05",78.9],["2026-10-12",78.5],
+        ["2026-10-19",78.6]
+      ]
+    },
+    taille: {
+      cle:"taille", libelle:"Tour de taille", unite:"cm", decimales:1, objectif:null,
+      points:[
+        ["2026-04-06",94.0],["2026-05-04",93.0],["2026-06-01",92.0],["2026-07-06",91.0],
+        ["2026-08-03",91.5],["2026-09-07",90.0],["2026-10-05",89.0],["2026-10-19",88.5]
+      ]
+    }
+  };
+
+  var PERIODES = [
+    {cle:"30j",  libelle:"30 j",            jours:30},
+    {cle:"90j",  libelle:"3 mois",          jours:90},
+    {cle:"tout", libelle:"Depuis le début", jours:null}
+  ];
+
+  var MOIS = ["janv.","févr.","mars","avr.","mai","juin","juil.","août",
+              "sept.","oct.","nov.","déc."];
+
+  var mesure = "poids", periode = "tout";
+
+  /* ---- Utilitaires ---------------------------------------------------- */
+  function nb(v, d){
+    return v.toFixed(d === undefined ? 1 : d).replace(".", ",");
+  }
+  function signe(v, d){
+    var s = nb(Math.abs(v), d);
+    return (v > 0 ? "+" : v < 0 ? "−" : "") + s;
+  }
+  function jolieDate(iso){
+    var p = iso.split("-");
+    return parseInt(p[2], 10) + " " + MOIS[parseInt(p[1], 10) - 1];
+  }
+  function depuis(jours){
+    if (jours === null) return null;
+    var d = new Date(AUJOURDHUI + "T00:00:00Z");
+    d.setUTCDate(d.getUTCDate() - jours);
+    return d.toISOString().slice(0, 10);
+  }
+
+  /* ---- Construction des sélecteurs ------------------------------------ */
+  var bm = document.getElementById("mesures");
+  ["poids","taille"].forEach(function(k){
+    var b = document.createElement("button");
+    b.type = "button"; b.setAttribute("aria-pressed", "false");
+    b.textContent = SERIES[k].libelle;
+    b.addEventListener("click", function(){ mesure = k; rendre(); });
+    bm.appendChild(b);
+  });
+
+  var bp = document.getElementById("periodes");
+  PERIODES.forEach(function(p){
+    var b = document.createElement("button");
+    b.type = "button"; b.setAttribute("aria-pressed", "false");
+    b.textContent = p.libelle;
+    b.addEventListener("click", function(){ periode = p.cle; rendre(); });
+    bp.appendChild(b);
+  });
+
+  /* ---- Tracé du graphique --------------------------------------------- */
+  function tracer(pts, serie){
+    var L = 520, H = 190, hg = 34, bd = 14, ht = 16, bs = 26;
+    if (pts.length === 0){
+      return '<div class="vide">Aucune mesure sur cette période.</div>';
+    }
+
+    var vals = pts.map(function(p){ return p[1]; });
+    var mn = Math.min.apply(null, vals), mx = Math.max.apply(null, vals);
+    var marge = (mx - mn) < 0.6 ? 0.6 : (mx - mn) * 0.22;
+    var bas = mn - marge, haut = mx + marge;
+
+    function X(i){
+      return pts.length === 1
+        ? hg + (L - hg - bd) / 2
+        : hg + i * (L - hg - bd) / (pts.length - 1);
+    }
+    function Y(v){
+      return ht + (haut - v) / (haut - bas) * (H - ht - bs);
+    }
+
+    var d = "", a = "";
+    pts.forEach(function(p, i){
+      d += (i === 0 ? "M" : "L") + X(i).toFixed(1) + " " + Y(p[1]).toFixed(1) + " ";
+    });
+    a = d + "L" + X(pts.length - 1).toFixed(1) + " " + (H - bs) + " L" +
+        X(0).toFixed(1) + " " + (H - bs) + " Z";
+
+    var g = '<svg viewBox="0 0 ' + L + ' ' + H + '" role="img" aria-label="' +
+            'Courbe : ' + serie.libelle + ', de ' + nb(pts[0][1], serie.decimales) +
+            ' à ' + nb(pts[pts.length - 1][1], serie.decimales) + ' ' + serie.unite + '">';
+
+    /* grille + étiquettes de l'axe vertical */
+    [haut, (haut + bas) / 2, bas].forEach(function(v){
+      var y = Y(v);
+      g += '<line x1="' + hg + '" y1="' + y.toFixed(1) + '" x2="' + (L - bd) +
+           '" y2="' + y.toFixed(1) + '" stroke="#EDF1F6" stroke-width="1"/>';
+      g += '<text x="0" y="' + (y + 4).toFixed(1) + '" font-size="11" fill="#9AA3B2" ' +
+           'font-family="inherit">' + nb(v, serie.decimales) + '</text>';
+    });
+
+    g += '<defs><linearGradient id="aire" x1="0" y1="0" x2="0" y2="1">' +
+         '<stop offset="0" stop-color="#20C7AA" stop-opacity=".26"/>' +
+         '<stop offset="1" stop-color="#20C7AA" stop-opacity="0"/>' +
+         '</linearGradient></defs>';
+    if (pts.length > 1){
+      g += '<path d="' + a + '" fill="url(#aire)"/>';
+      g += '<path d="' + d + '" fill="none" stroke="#20C7AA" stroke-width="3" ' +
+           'stroke-linecap="round" stroke-linejoin="round"/>';
+    }
+
+    pts.forEach(function(p, i){
+      var dernier = i === pts.length - 1;
+      g += '<circle cx="' + X(i).toFixed(1) + '" cy="' + Y(p[1]).toFixed(1) +
+           '" r="' + (dernier ? 6 : 3.4) + '" fill="' +
+           (dernier ? "#18243A" : "#fff") + '" stroke="#20C7AA" stroke-width="' +
+           (dernier ? 3 : 2.2) + '"/>';
+    });
+
+    /* valeur du dernier point */
+    var xd = X(pts.length - 1), yd = Y(pts[pts.length - 1][1]);
+    var lx = Math.min(xd, L - bd - 52);
+    g += '<rect x="' + (lx - 26) + '" y="' + (yd - 32) + '" width="58" height="21" ' +
+         'rx="7" fill="#18243A"/>';
+    g += '<text x="' + (lx + 3) + '" y="' + (yd - 17.5) + '" font-size="12" ' +
+         'font-weight="700" fill="#fff" text-anchor="middle" font-family="inherit">' +
+         nb(pts[pts.length - 1][1], serie.decimales) + '</text>';
+
+    return g + '</svg>';
+  }
+
+  /* ---- Score de progression (formule « perte ») ----------------------- */
+  function scoreProgression(serie){
+    /* Calculé sur TOUTES les mesures, quelle que soit la période affichée :
+       le point de départ d'une progression ne change pas parce qu'on
+       regarde les trois derniers mois. */
+    var tous = serie.points;
+    if (!serie.objectif || tous.length < 2) return null;
+    var depart = tous[0][1], actuel = tous[tous.length - 1][1];
+    var denom = depart - serie.objectif;
+    if (denom <= 0) return null;
+    var s = ((depart - actuel) / denom) * 100;
+    return {
+      valeur: Math.round(Math.max(0, Math.min(100, s))),
+      depart: depart, actuel: actuel, objectif: serie.objectif,
+      restant: Math.round((actuel - serie.objectif) * 10) / 10
+    };
+  }
+
+  /* ---- Score d'adhérence (somme pondérée, plafonnée) ------------------ */
+  var CRITERES = [
+    {label:"Respect des menus",            poids:20, valeur:0.78, cible:1,  texte:"78 % des repas suivis"},
+    {label:"Régularité (meilleure série)", poids:15, valeur:9,    cible:10, texte:"9 jours d'affilée"},
+    {label:"Mises à jour des progrès",     poids:15, valeur:5,    cible:4,  texte:"5 mesures / 30 j"},
+    {label:"Régularité de connexion",      poids:10, valeur:18,   cible:10, texte:"18 jours actifs / 30"}
+  ];
+  var AUTRES = [
+    {poids:10, valeur:6, cible:5}, {poids:10, valeur:2, cible:3},
+    {poids:10, valeur:3, cible:2}, {poids:10, valeur:1, cible:3}
+  ];
+
+  function adherence(){
+    var total = 0;
+    CRITERES.concat(AUTRES).forEach(function(c){
+      var n = Math.max(0, Math.min(1, c.valeur / c.cible));
+      total += Math.round(n * c.poids * 10) / 10;
+    });
+    return Math.round(total);
+  }
+
+  function rendreAdherence(){
+    /* Le bloc « Score d'adhérence » est signalé comme optionnel dans le
+       balisage : s'il a été retiré, il n'y a simplement rien à remplir. */
+    if (!document.getElementById("adh-n")) return;
+    document.getElementById("adh-n").textContent = adherence();
+    document.getElementById("adh-t").textContent = "+3 sur 7 jours";
+    var boite = document.getElementById("crits");
+    boite.innerHTML = "";
+    CRITERES.forEach(function(c){
+      var n = Math.max(0, Math.min(1, c.valeur / c.cible));
+      var pts = Math.round(n * c.poids * 10) / 10;
+      var d = document.createElement("div");
+      d.className = "crit";
+      d.innerHTML =
+        '<div class="crit-h"><span>' + c.label + '</span>' +
+        '<span class="v">' + c.texte + ' · ' + nb(pts, 1) + '/' + c.poids + '</span></div>' +
+        '<div class="barre"><i style="width:' + (n * 100).toFixed(0) + '%"></i></div>';
+      boite.appendChild(d);
+    });
+  }
+
+  /* ---- Rendu général --------------------------------------------------- */
+  function rendre(){
+    var serie = SERIES[mesure];
+    var p = PERIODES.filter(function(x){ return x.cle === periode; })[0];
+    var seuil = depuis(p.jours);
+    var pts = serie.points.filter(function(q){ return seuil === null || q[0] >= seuil; });
+
+    var bs = bm.querySelectorAll("button");
+    bs[0].setAttribute("aria-pressed", mesure === "poids"  ? "true" : "false");
+    bs[1].setAttribute("aria-pressed", mesure === "taille" ? "true" : "false");
+    var ps = bp.querySelectorAll("button");
+    for (var i = 0; i < ps.length; i++){
+      ps[i].setAttribute("aria-pressed", PERIODES[i].cle === periode ? "true" : "false");
+    }
+
+    document.getElementById("graph").innerHTML = tracer(pts, serie);
+    document.getElementById("axe-g").textContent = pts.length ? jolieDate(pts[0][0]) : "";
+    document.getElementById("axe-d").textContent = pts.length ? jolieDate(pts[pts.length - 1][0]) : "";
+
+    var d = serie.decimales, u = serie.unite;
+    if (pts.length >= 2){
+      var evo = Math.round((pts[pts.length - 1][1] - pts[0][1]) * 10) / 10;
+      var der = Math.round((pts[pts.length - 1][1] - pts[pts.length - 2][1]) * 10) / 10;
+      document.getElementById("k-evo").textContent   = signe(evo, d) + " " + u;
+      document.getElementById("k-evo-s").textContent = "depuis le " + jolieDate(pts[0][0]);
+      document.getElementById("k-der").textContent   = nb(pts[pts.length - 1][1], d) + " " + u;
+      document.getElementById("k-der-s").textContent = signe(der, d) + " " + u + " · " +
+        jolieDate(pts[pts.length - 1][0]);
+    } else if (pts.length === 1){
+      document.getElementById("k-evo").textContent   = "—";
+      document.getElementById("k-evo-s").textContent = "une seule mesure";
+      document.getElementById("k-der").textContent   = nb(pts[0][1], d) + " " + u;
+      document.getElementById("k-der-s").textContent = jolieDate(pts[0][0]);
+    } else {
+      document.getElementById("k-evo").textContent   = "—";
+      document.getElementById("k-evo-s").textContent = "aucune mesure";
+      document.getElementById("k-der").textContent   = "—";
+      document.getElementById("k-der-s").textContent = "—";
+    }
+    document.getElementById("k-nb").textContent = pts.length;
+
+    /* Score de progression — toujours sur le poids, toujours depuis le début */
+    var sc = scoreProgression(SERIES.poids);
+    var arc = document.getElementById("arc");
+    var circonf = 2 * Math.PI * 40;
+    if (sc){
+      document.getElementById("sc-n").textContent = sc.valeur;
+      arc.setAttribute("stroke-dasharray",
+        (circonf * sc.valeur / 100).toFixed(1) + " " + circonf.toFixed(1));
+      document.getElementById("sc-h").textContent =
+        "Tu as parcouru " + sc.valeur + " % du chemin vers ton objectif.";
+      document.getElementById("jalons").innerHTML =
+        'Départ <b>' + nb(sc.depart, 1) + ' kg</b> → aujourd\'hui <b>' +
+        nb(sc.actuel, 1) + ' kg</b> · objectif <span class="obj">' +
+        nb(sc.objectif, 1) + ' kg</span> · reste <b>' + nb(sc.restant, 1) + ' kg</b>';
+    }
+  }
+
+  rendre();
+  rendreAdherence();
+})();
+</script>
+</body>
+</html>
